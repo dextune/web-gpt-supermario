@@ -1,0 +1,48 @@
+export const LOGICAL_WIDTH = 256;
+export const LOGICAL_HEIGHT = 240;
+export const FIXED_DT = 1 / 60;
+
+export const Scene = Object.freeze({
+  BOOT: "BOOT",
+  TITLE: "TITLE",
+  GAME: "GAME",
+  PAUSE: "PAUSE",
+  GAME_OVER: "GAME_OVER",
+  CLEAR: "CLEAR",
+});
+
+export const Action = Object.freeze({
+  LEFT: "LEFT",
+  RIGHT: "RIGHT",
+  UP: "UP",
+  DOWN: "DOWN",
+  JUMP: "JUMP",
+  RUN: "RUN",
+  PAUSE: "PAUSE",
+  START: "START",
+  RESTART: "RESTART",
+  DEBUG: "DEBUG",
+});
+
+export const Tile = Object.freeze({
+  EMPTY: 0,
+  GROUND: 1,
+  BREAKABLE: 2,
+  ITEM: 3,
+  USED: 4,
+  HAZARD: 5,
+  ONE_WAY: 6,
+  DECOR: 7,
+});
+
+export const Event = Object.freeze({
+  PLAYER_DIED: "PLAYER_DIED",
+  PLAYER_POWERUP: "PLAYER_POWERUP",
+  PLAYER_HIT: "PLAYER_HIT",
+  COIN_COLLECTED: "COIN_COLLECTED",
+  ENEMY_DEFEATED: "ENEMY_DEFEATED",
+  BLOCK_BROKEN: "BLOCK_BROKEN",
+  LEVEL_CLEAR: "LEVEL_CLEAR",
+  CHECKPOINT_REACHED: "CHECKPOINT_REACHED",
+  SCORE_CHANGED: "SCORE_CHANGED",
+});

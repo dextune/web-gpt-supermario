@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#121722">
+  <title>Starbound Sprint</title>
+  <link rel="stylesheet" href="./styles/reset.css">
+  <link rel="stylesheet" href="./styles/game.css">
+  <link rel="stylesheet" href="./styles/ui.css">
+</head>
+<body>
+  <main id="game-shell">
+    <section id="game-frame" aria-label="Starbound Sprint game">
+      <canvas id="game-canvas" width="256" height="240" aria-label="2D platform game"></canvas>
+
+      <div id="hud" aria-live="polite">
+        <span>SCORE <b data-hud="score">000000</b></span>
+        <span>SHARDS <b data-hud="coins">00</b></span>
+        <span>LIVES <b data-hud="lives">3</b></span>
+        <span>TIME <b data-hud="time">300</b></span>
+      </div>
+
+      <div id="overlay" class="overlay">
+        <div class="panel">
+          <h1 data-overlay="title">STARBOUND SPRINT</h1>
+          <p data-overlay="body">Move: ← → / A D · Jump: Z / Space · Run: X / Shift</p>
+          <p class="prompt" data-overlay="prompt">Press Enter or Space</p>
+        </div>
+      </div>
+
+      <div id="touch-controls" aria-label="Touch controls">
+        <div class="touch-left">
+          <button type="button" data-action="LEFT" aria-label="Move left">◀</button>
+          <button type="button" data-action="RIGHT" aria-label="Move right">▶</button>
+        </div>
+        <div class="touch-right">
+          <button type="button" data-action="RUN" aria-label="Run">R</button>
+          <button type="button" data-action="JUMP" aria-label="Jump">J</button>
+        </div>
+      </div>
+    </section>
+    <p id="help">Enter 시작 · P/Esc 일시정지 · R 재시작 · F2 디버그</p>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
