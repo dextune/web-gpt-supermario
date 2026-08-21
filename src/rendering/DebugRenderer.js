@@ -16,21 +16,27 @@ export class DebugRenderer {
   render(world) {
     if (!this.enabled || !world) return;
     const ctx = this.renderer.ctx;
-    const p = world.player;
-    const cam = world.camera;
+    const player = world.player;
+    const camera = world.camera;
+    let activeCount = 0;
+    for (let i = 0; i < world.entities.length; i += 1) {
+      const entity = world.entities[i];
+      if (entity.active && entity.simulationActive !== false) activeCount += 1;
+    }
+
     ctx.save();
     ctx.font = "8px monospace";
     ctx.textBaseline = "top";
-    ctx.fillStyle = "#000c";
-    ctx.fillRect(3, 27, 145, 59);
-    ctx.fillStyle = "#eaffff";
-    ctx.fillText(`FPS ${this.fps.toFixed(1)}  FT ${(this.frameTime * 1000).toFixed(2)}ms`, 6, 30);
-    ctx.fillText(`ENT ${world.entities.length} ACTIVE ${world.entities.filter(e => e.active && e.simulationActive !== false).length}`, 6, 40);
-    ctx.fillText(`CAM ${cam.x.toFixed(1)},${cam.y.toFixed(1)}`, 6, 50);
-    ctx.fillText(`P ${p.x.toFixed(1)},${p.y.toFixed(1)} V ${p.vx.toFixed(1)},${p.vy.toFixed(1)}`, 6, 60);
-    ctx.fillText(`${p.state} G:${p.grounded ? 1 : 0} POW:${p.power}`, 6, 70);
-    ctx.strokeStyle = "#ff38d1";
-    ctx.strokeRect(Math.round(p.x - cam.x) + .5, Math.round(p.y) + .5, p.width - 1, p.height - 1);
+    ctx.fillStyle = "#06111ee8";
+    ctx.fillRect(4, 28, 170, 61);
+    ctx.fillStyle = "#dffcff";
+    ctx.fillText(`FPS ${this.fps.toFixed(1)}  FT ${(this.frameTime * 1000).toFixed(2)}ms`, 8, 32);
+    ctx.fillText(`ENT ${world.entities.length} ACTIVE ${activeCount}`, 8, 42);
+    ctx.fillText(`CAM ${camera.x.toFixed(1)},${camera.y.toFixed(1)}`, 8, 52);
+    ctx.fillText(`P ${player.x.toFixed(1)},${player.y.toFixed(1)} V ${player.vx.toFixed(1)},${player.vy.toFixed(1)}`, 8, 62);
+    ctx.fillText(`${player.state} G:${player.grounded ? 1 : 0} POW:${player.power}`, 8, 72);
+    ctx.strokeStyle = "#ff4edb";
+    ctx.strokeRect(Math.round(player.x - camera.x) + .5, Math.round(player.y) + .5, player.width - 1, player.height - 1);
     ctx.restore();
   }
 }

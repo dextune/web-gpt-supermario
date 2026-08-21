@@ -1,47 +1,32 @@
 import { Tile } from "../data/constants.js";
 import { lerp } from "../utils/math.js";
+import { BackgroundRenderer } from "./BackgroundRenderer.js";
+import { drawEntitySprite } from "./RenderCatalog.js";
+import { drawPlayerSprite } from "./PixelArt.js";
+import { drawTileArt } from "./TileArt.js";
 
+/** Canvas renderer. Gameplay entities expose state; visual interpretation stays in rendering modules. */
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d", { alpha: false });
     this.ctx.imageSmoothingEnabled = false;
+    this.background = new BackgroundRenderer();
   }
 
   render(world, alpha) {
     const ctx = this.ctx;
     const cameraX = lerp(world.camera.prevX, world.camera.x, alpha);
-    this.drawBackground(ctx, cameraX);
-    this.drawTiles(ctx, world, cameraX);
-    this.drawGoal(ctx, world, cameraX);
-    this.drawEntities(ctx, world, cameraX, alpha);
-    this.drawPlayer(ctx, world.player, cameraX, alpha);
+    const visualTime = performance.now() * 0.001;
+    this.background.draw(ctx, this.canvas.width, this.canvas.height, cameraX, visualTime);
+    this.drawTiles(ctx, world, cameraX, visualTime);
+    this.drawGoal(ctx, world, cameraX, visualTime);
+    this.drawEntities(ctx, world, cameraX, alpha, visualTime);
+    this.drawPlayer(ctx, world.player, cameraX, alpha, visualTime);
     this.drawParticles(ctx, world, cameraX);
   }
 
-  drawBackground(ctx, cameraX) {
-    ctx.fillStyle = "#5da9e9";
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.fillStyle = "#d8f3ff";
-    const drift = -((cameraX * 0.15) % 90);
-    for (let i = -1; i < 5; i += 1) {
-      const x = drift + i * 90;
-      ctx.fillRect(x, 46 + (i % 2) * 15, 28, 5);
-      ctx.fillRect(x + 6, 41 + (i % 2) * 15, 16, 5);
-    }
-    ctx.fillStyle = "#9acb89";
-    const hill = -((cameraX * 0.35) % 128);
-    for (let i = -1; i < 4; i += 1) {
-      const x = hill + i * 128;
-      ctx.beginPath();
-      ctx.moveTo(x, 208);
-      ctx.lineTo(x + 38, 155);
-      ctx.lineTo(x + 76, 208);
-      ctx.fill();
-    }
-  }
-
-  drawTiles(ctx, world, cameraX) {
+  drawTiles(ctx, world, cameraX, visualTime) {
     const map = world.tileMap;
     const s = map.tileSize;
     const startCol = Math.max(0, Math.floor(cameraX / s));
@@ -53,105 +38,76 @@ export class Renderer {
         const tile = map.get(col, row);
         if (tile === Tile.EMPTY) continue;
         const offsetY = world.blockSystem.offset(col, row);
-        this.drawTile(ctx, tile, Math.round(col * s - cameraX), row * s + offsetY, s);
+        const x = Math.round(col * s - cameraX);
+        const y = Math.round(row * s + offsetY);
+        drawTileArt(ctx, map, tile, col, row, x, y, s, visualTime);
       }
     }
   }
 
-  drawTile(ctx, tile, x, y, s) {
-    if (tile === Tile.GROUND) {
-      ctx.fillStyle = "#5b3f2c"; ctx.fillRect(x, y, s, s);
-      ctx.fillStyle = "#76a943"; ctx.fillRect(x, y, s, 4);
-      ctx.fillStyle = "#79543a"; ctx.fillRect(x + 3, y + 7, 5, 3);
-    } else if (tile === Tile.BREAKABLE) {
-      ctx.fillStyle = "#ba6a42"; ctx.fillRect(x + 1, y + 1, s - 2, s - 2);
-      ctx.fillStyle = "#e09a65"; ctx.fillRect(x + 2, y + 3, s - 4, 2);
-      ctx.fillStyle = "#6f3b2c"; ctx.fillRect(x + 7, y + 1, 2, s - 2);
-    } else if (tile === Tile.ITEM) {
-      ctx.fillStyle = "#f0b934"; ctx.fillRect(x + 1, y + 1, s - 2, s - 2);
-      ctx.fillStyle = "#fff4a8"; ctx.fillRect(x + 6, y + 4, 4, 5); ctx.fillRect(x + 7, y + 11, 2, 2);
-    } else if (tile === Tile.USED) {
-      ctx.fillStyle = "#8b7353"; ctx.fillRect(x + 1, y + 1, s - 2, s - 2);
-      ctx.fillStyle = "#ae9978"; ctx.fillRect(x + 3, y + 3, s - 6, 2);
-    } else if (tile === Tile.HAZARD) {
-      ctx.fillStyle = "#c93f50";
-      ctx.beginPath();
-      ctx.moveTo(x, y + s); ctx.lineTo(x + s * .25, y + 3); ctx.lineTo(x + s * .5, y + s);
-      ctx.lineTo(x + s * .75, y + 3); ctx.lineTo(x + s, y + s); ctx.fill();
-    } else if (tile === Tile.ONE_WAY) {
-      ctx.fillStyle = "#516b8a"; ctx.fillRect(x, y, s, 4);
-      ctx.fillStyle = "#87a6c8"; ctx.fillRect(x + 2, y, s - 4, 2);
-    }
-  }
-
-  drawEntities(ctx, world, cameraX, alpha) {
+  drawEntities(ctx, world, cameraX, alpha, visualTime) {
     const entities = world.entities;
     for (let i = 0; i < entities.length; i += 1) {
-      const e = entities[i];
-      if (!e.active || !e.visible) continue;
-      const x = Math.round(lerp(e.prevX, e.x, alpha) - cameraX);
-      const y = Math.round(lerp(e.prevY, e.y, alpha));
-      if (x + e.width < -8 || x > this.canvas.width + 8) continue;
-
-      if (e.kind === "enemy") this.drawEnemy(ctx, e, x, y);
-      else if (e.kind === "item") this.drawItem(ctx, e, x, y);
+      const entity = entities[i];
+      if (!entity.active || !entity.visible) continue;
+      const x = Math.round(lerp(entity.prevX, entity.x, alpha) - cameraX);
+      const y = Math.round(lerp(entity.prevY, entity.y, alpha));
+      if (x + entity.width < -24 || x > this.canvas.width + 24) continue;
+      drawEntitySprite(ctx, entity, x, y, visualTime);
     }
   }
 
-  drawEnemy(ctx, e, x, y) {
-    if (e.type === "walker") {
-      ctx.fillStyle = "#593c73"; ctx.fillRect(x + 1, y + 3, e.width - 2, e.height - 4);
-      ctx.fillStyle = "#d3b4f0"; ctx.fillRect(x + 3, y + 1, e.width - 6, 5);
-      ctx.fillStyle = "#10151e"; ctx.fillRect(x + 4, y + 6, 2, 2); ctx.fillRect(x + 9, y + 6, 2, 2);
-    } else if (e.type === "shell") {
-      ctx.fillStyle = e.state === "SHELL_MOVING" ? "#f36f4a" : "#2f7d6d";
-      ctx.fillRect(x + 1, y + 5, e.width - 2, e.height - 6);
-      ctx.fillStyle = "#a7e0c1"; ctx.fillRect(x + 3, y + 2, e.width - 6, 7);
-      if (e.state === "SHELL_IDLE") { ctx.fillStyle = "#16222b"; ctx.fillRect(x + 3, y + 9, e.width - 6, 3); }
-    } else {
-      ctx.fillStyle = "#7c4dff"; ctx.fillRect(x + 2, y + 3, e.width - 4, e.height - 4);
-      ctx.fillStyle = "#d8ccff"; ctx.fillRect(x - 3, y + 5, 5, 3); ctx.fillRect(x + e.width - 2, y + 5, 5, 3);
-    }
-  }
-
-  drawItem(ctx, e, x, y) {
-    if (e.type === "shard") {
-      ctx.fillStyle = "#f9f871";
-      ctx.beginPath(); ctx.moveTo(x + 4, y); ctx.lineTo(x + e.width, y + 4); ctx.lineTo(x + 4, y + e.height); ctx.lineTo(x, y + 4); ctx.fill();
-    } else {
-      ctx.fillStyle = "#4ef2c2"; ctx.fillRect(x + 2, y + 2, e.width - 4, e.height - 4);
-      ctx.fillStyle = "#e7fff8"; ctx.fillRect(x + 5, y, 4, e.height);
-    }
-  }
-
-  drawPlayer(ctx, p, cameraX, alpha) {
-    if (!p.visible) return;
-    if (p.invulnerabilityTimer > 0 && Math.floor(p.invulnerabilityTimer * 18) % 2 === 0) return;
-    const x = Math.round(lerp(p.prevX, p.x, alpha) - cameraX);
-    const y = Math.round(lerp(p.prevY, p.y, alpha));
-    ctx.fillStyle = p.power === "BOOST" ? "#ff6c6c" : "#243b80";
-    ctx.fillRect(x + 2, y + 2, p.width - 4, p.height - 2);
-    ctx.fillStyle = "#f4d6a0"; ctx.fillRect(x + 4, y + 1, p.width - 6, 6);
-    ctx.fillStyle = "#10151e"; ctx.fillRect(x + (p.facing > 0 ? 9 : 4), y + 4, 2, 2);
-    ctx.fillStyle = "#bce7ff"; ctx.fillRect(x + 2, y + p.height - 4, 4, 4); ctx.fillRect(x + p.width - 5, y + p.height - 4, 4, 4);
+  drawPlayer(ctx, player, cameraX, alpha, visualTime) {
+    if (!player.visible) return;
+    if (player.invulnerabilityTimer > 0 && Math.floor(player.invulnerabilityTimer * 18) % 2 === 0) return;
+    const x = Math.round(lerp(player.prevX, player.x, alpha) - cameraX);
+    const y = Math.round(lerp(player.prevY, player.y, alpha));
+    drawPlayerSprite(ctx, player, x, y, visualTime);
   }
 
   drawParticles(ctx, world, cameraX) {
     const active = world.particles.pool.active;
-    ctx.fillStyle = "#fff1a6";
     for (let i = 0; i < active.length; i += 1) {
-      const p = active[i];
-      ctx.fillRect(Math.round(p.x - cameraX), Math.round(p.y), p.size, p.size);
+      const particle = active[i];
+      const life = particle.maxLife > 0 ? particle.life / particle.maxLife : 1;
+      ctx.fillStyle = life < 0.45 ? "#fff3a3" : life < 0.75 ? "#f0c55c" : "#d78e45";
+      const x = Math.round(particle.x - cameraX);
+      const y = Math.round(particle.y);
+      ctx.fillRect(x, y, particle.size + 1, particle.size + 1);
+      if (particle.size > 1 && life < 0.55) {
+        ctx.fillStyle = "#fffbd5";
+        ctx.fillRect(x + 1, y, 1, 1);
+      }
     }
   }
 
-  drawGoal(ctx, world, cameraX) {
+  drawGoal(ctx, world, cameraX, visualTime) {
     const goal = world.level.goal;
     if (!goal) return;
     const x = Math.round(goal.x - cameraX);
-    if (x < -20 || x > this.canvas.width + 20) return;
-    ctx.fillStyle = "#d9edf6"; ctx.fillRect(x + 7, goal.y, 2, goal.height);
-    ctx.fillStyle = "#38d6c2"; ctx.fillRect(x + 9, goal.y + 5, 13, 8);
-    ctx.fillStyle = "#ffffff"; ctx.fillRect(x + 4, goal.y - 3, 8, 5);
+    if (x < -28 || x > this.canvas.width + 28) return;
+    const y = Math.round(goal.y);
+    const h = goal.height;
+    const pulse = Math.floor(visualTime * 5) & 1;
+
+    ctx.fillStyle = "#102334";
+    ctx.fillRect(x + 6, y + 2, 5, h - 2);
+    ctx.fillStyle = "#bfd9df";
+    ctx.fillRect(x + 7, y + 1, 2, h - 1);
+    ctx.fillStyle = "#f1fbff";
+    ctx.fillRect(x + 7, y, 4, 3);
+    ctx.fillStyle = "#142b3e";
+    ctx.fillRect(x + 2, y + h - 5, 14, 5);
+    ctx.fillStyle = "#2c6e77";
+    ctx.fillRect(x + 4, y + h - 7, 10, 2);
+
+    ctx.fillStyle = "#0d4051";
+    ctx.fillRect(x + 10, y + 6, 18, 11);
+    ctx.fillStyle = pulse ? "#45efcf" : "#32cbb7";
+    ctx.fillRect(x + 12, y + 8, 14, 7);
+    ctx.fillStyle = "#d9fff6";
+    ctx.fillRect(x + 13, y + 9, 4, 2);
+    ctx.fillStyle = "#f3d76e";
+    ctx.fillRect(x + 22, y + 10, 2, 3);
   }
 }

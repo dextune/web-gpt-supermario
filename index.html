@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#121722">
+  <meta name="theme-color" content="#07121f">
   <title>Starbound Sprint</title>
   <link rel="stylesheet" href="./styles/reset.css">
   <link rel="stylesheet" href="./styles/game.css">
@@ -12,17 +12,18 @@
 <body>
   <main id="game-shell">
     <section id="game-frame" aria-label="Starbound Sprint game">
-      <canvas id="game-canvas" width="256" height="240" aria-label="2D platform game"></canvas>
+      <canvas id="game-canvas" width="320" height="240" aria-label="2D platform game"></canvas>
 
       <div id="hud" aria-live="polite">
-        <span>SCORE <b data-hud="score">000000</b></span>
-        <span>SHARDS <b data-hud="coins">00</b></span>
-        <span>LIVES <b data-hud="lives">3</b></span>
-        <span>TIME <b data-hud="time">300</b></span>
+        <span><small>SCORE</small><b data-hud="score">000000</b></span>
+        <span><small>SHARDS</small><b data-hud="coins">00</b></span>
+        <span><small>LIVES</small><b data-hud="lives">3</b></span>
+        <span><small>TIME</small><b data-hud="time">300</b></span>
       </div>
 
       <div id="overlay" class="overlay">
         <div class="panel">
+          <p class="eyebrow">ORIGINAL RETRO PLATFORM ADVENTURE</p>
           <h1 data-overlay="title">STARBOUND SPRINT</h1>
           <p data-overlay="body">Move: ← → / A D · Jump: Z / Space · Run: X / Shift</p>
           <p class="prompt" data-overlay="prompt">Press Enter or Space</p>

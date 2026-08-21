@@ -1,1 +1,6 @@
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#0d1118}button{font:inherit}canvas{display:block}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;min-height:100%;background:#050a10}
+html{overflow:hidden}
+body{min-height:100dvh;overflow:hidden}
+button{font:inherit}
+canvas{display:block}
