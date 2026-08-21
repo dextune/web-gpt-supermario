@@ -1,29 +1,42 @@
 import { Tile } from "../data/constants.js";
 import { lerp } from "../utils/math.js";
 import { BackgroundRenderer } from "./BackgroundRenderer.js";
+import { DecorationRenderer } from "./DecorationRenderer.js";
 import { drawEntitySprite } from "./RenderCatalog.js";
 import { drawPlayerSprite } from "./PixelArt.js";
 import { drawTileArt } from "./TileArt.js";
 
-/** Canvas renderer. Gameplay entities expose state; visual interpretation stays in rendering modules. */
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d", { alpha: false });
     this.ctx.imageSmoothingEnabled = false;
     this.background = new BackgroundRenderer();
+    this.decorations = new DecorationRenderer();
   }
 
   render(world, alpha) {
     const ctx = this.ctx;
     const cameraX = lerp(world.camera.prevX, world.camera.x, alpha);
+    const shakeX = Math.round(lerp(world.camera.prevShakeX, world.camera.shakeX, alpha));
+    const shakeY = Math.round(lerp(world.camera.prevShakeY, world.camera.shakeY, alpha));
     const visualTime = performance.now() * 0.001;
+
     this.background.draw(ctx, this.canvas.width, this.canvas.height, cameraX, visualTime);
+
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+    this.decorations.draw(ctx, world.level.decorations, cameraX, this.canvas.width, visualTime, "back");
     this.drawTiles(ctx, world, cameraX, visualTime);
     this.drawGoal(ctx, world, cameraX, visualTime);
     this.drawEntities(ctx, world, cameraX, alpha, visualTime);
     this.drawPlayer(ctx, world.player, cameraX, alpha, visualTime);
+    this.decorations.draw(ctx, world.level.decorations, cameraX, this.canvas.width, visualTime, "front");
     this.drawParticles(ctx, world, cameraX);
+    this.drawFloatingText(ctx, world, cameraX);
+    ctx.restore();
+
+    this.drawScreenFlash(ctx, world);
   }
 
   drawTiles(ctx, world, cameraX, visualTime) {
@@ -69,16 +82,49 @@ export class Renderer {
     const active = world.particles.pool.active;
     for (let i = 0; i < active.length; i += 1) {
       const particle = active[i];
-      const life = particle.maxLife > 0 ? particle.life / particle.maxLife : 1;
-      ctx.fillStyle = life < 0.45 ? "#fff3a3" : life < 0.75 ? "#f0c55c" : "#d78e45";
+      const progress = particle.maxLife > 0 ? particle.life / particle.maxLife : 1;
+      const size = Math.max(1, Math.round(particle.size + (particle.endSize - particle.size) * progress));
       const x = Math.round(particle.x - cameraX);
       const y = Math.round(particle.y);
-      ctx.fillRect(x, y, particle.size + 1, particle.size + 1);
-      if (particle.size > 1 && life < 0.55) {
-        ctx.fillStyle = "#fffbd5";
-        ctx.fillRect(x + 1, y, 1, 1);
+      ctx.fillStyle = progress < 0.55 ? particle.colorA : particle.colorB;
+      if (particle.shape === 1) {
+        ctx.fillRect(x - size, y, size * 2 + 1, 1);
+        ctx.fillRect(x, y - size, 1, size * 2 + 1);
+      } else {
+        ctx.fillRect(x, y, size, size);
       }
     }
+  }
+
+  drawFloatingText(ctx, world, cameraX) {
+    const active = world.floatingText.pool.active;
+    if (active.length === 0) return;
+    ctx.save();
+    ctx.font = "bold 7px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < active.length; i += 1) {
+      const label = active[i];
+      const progress = label.life / label.maxLife;
+      ctx.globalAlpha = Math.min(1, (1 - progress) * 2.4);
+      const x = Math.round(label.x - cameraX);
+      const y = Math.round(label.y);
+      ctx.fillStyle = "#102232";
+      ctx.fillText(label.text, x + 1, y + 1);
+      ctx.fillStyle = label.color;
+      ctx.fillText(label.text, x, y);
+    }
+    ctx.restore();
+  }
+
+  drawScreenFlash(ctx, world) {
+    if (world.screenFlashTime <= 0 || world.screenFlashDuration <= 0) return;
+    const intensity = world.screenFlashTime / world.screenFlashDuration;
+    ctx.save();
+    ctx.globalAlpha = intensity * 0.2;
+    ctx.fillStyle = world.screenFlashColor;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.restore();
   }
 
   drawGoal(ctx, world, cameraX, visualTime) {

@@ -26,7 +26,7 @@ export class Game {
     this.scene = new SceneManager(Scene.BOOT);
     this.renderer = new Renderer(canvas);
     this.debug = new DebugRenderer(this.renderer);
-    this.hud = new HUD(hudRoot);
+    this.hud = new HUD(hudRoot, this.events);
     this.overlay = new Overlay(overlayRoot);
     this.touchRoot = touchRoot;
     this.factory = new EntityFactory();
@@ -71,10 +71,14 @@ export class Game {
   installEvents() {
     this.disposers.push(this.events.on(Event.PLAYER_DIED, () => this.onPlayerDied()));
     this.disposers.push(this.events.on(Event.LEVEL_CLEAR, () => this.onLevelClear()));
-    this.disposers.push(this.events.on(Event.COIN_COLLECTED, () => this.audio.tone(880, 0.05)));
-    this.disposers.push(this.events.on(Event.ENEMY_DEFEATED, () => this.audio.tone(180, 0.07)));
-    this.disposers.push(this.events.on(Event.PLAYER_POWERUP, () => this.audio.tone(660, 0.12, "square", 0.16)));
-    this.disposers.push(this.events.on(Event.PLAYER_HIT, () => this.audio.tone(110, 0.14, "sawtooth", 0.12)));
+    this.disposers.push(this.events.on(Event.PLAYER_JUMP, () => this.audio.play("jump")));
+    this.disposers.push(this.events.on(Event.PLAYER_LAND, () => this.audio.play("land")));
+    this.disposers.push(this.events.on(Event.COIN_COLLECTED, () => this.audio.play("collect")));
+    this.disposers.push(this.events.on(Event.ENEMY_DEFEATED, () => this.audio.play("stomp")));
+    this.disposers.push(this.events.on(Event.SHELL_KICK, () => this.audio.play("shell")));
+    this.disposers.push(this.events.on(Event.BLOCK_HIT, () => this.audio.play("block")));
+    this.disposers.push(this.events.on(Event.PLAYER_POWERUP, () => this.audio.play("power")));
+    this.disposers.push(this.events.on(Event.PLAYER_HIT, () => this.audio.play("hurt")));
   }
 
   startLevel() {
@@ -92,7 +96,7 @@ export class Game {
 
   onPlayerDied() {
     this.session.lives -= 1;
-    this.audio.tone(85, 0.32, "square", 0.12);
+    this.audio.play("death");
     if (this.session.lives > 0) {
       this.startLevel();
     } else {
@@ -104,7 +108,7 @@ export class Game {
 
   onLevelClear() {
     this.scene.set(Scene.CLEAR);
-    this.audio.tone(740, 0.25, "square", 0.14);
+    this.audio.play("goal");
     this.saved.unlockedLevel = Math.max(this.saved.unlockedLevel, 1);
     this.updateHighScore();
     this.updateOverlay();
@@ -161,7 +165,7 @@ export class Game {
   updateOverlay() {
     const scene = this.scene.current;
     if (scene === Scene.TITLE) {
-      this.overlay.show("STARBOUND SPRINT", "Original-asset classic platform demo · Arrow/A-D move · Z/Space jump · X/Shift run", "Enter / Space to start");
+      this.overlay.show("STARBOUND SPRINT", "Copper Skyway · Arrow/A-D move · Z/Space jump · X/Shift run", "Enter / Space to start");
     } else if (scene === Scene.PAUSE) {
       this.overlay.show("PAUSED", "Simulation is frozen; rendering remains active.", "P / Esc / Enter to resume");
     } else if (scene === Scene.GAME_OVER) {
@@ -174,6 +178,7 @@ export class Game {
   destroy() {
     this.loop.stop();
     this.world?.destroy();
+    this.hud.destroy();
     this.input.destroy();
     this.audio.destroy();
     this.assets.clear();

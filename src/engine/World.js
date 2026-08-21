@@ -6,6 +6,7 @@ import { CollisionSystem } from "./systems/CollisionSystem.js";
 import { Camera } from "../world/Camera.js";
 import { BlockSystem } from "../gameplay/BlockSystem.js";
 import { ParticleSystem } from "../gameplay/ParticleSystem.js";
+import { FloatingTextSystem } from "../gameplay/FloatingTextSystem.js";
 import { ScoreSystem } from "../gameplay/ScoreSystem.js";
 import { SpawnManager } from "../world/SpawnManager.js";
 import { SpatialHash } from "./SpatialHash.js";
@@ -31,6 +32,7 @@ export class World {
     this.spawnManager.update(this.entities, this.camera);
     this.blockSystem = new BlockSystem(this.tileMap, this);
     this.particles = new ParticleSystem();
+    this.floatingText = new FloatingTextSystem();
     this.scoreSystem = new ScoreSystem(events, session);
     this.spatialHash = new SpatialHash(32);
     this.queryScratch = [];
@@ -39,27 +41,66 @@ export class World {
     this.clearTimer = -1;
     this.deathHandled = false;
     this.checkpointFlags = new Uint8Array(level.checkpoints.length);
+    this.stompChain = 0;
+    this.stompChainTimer = 0;
+    this.screenFlashTime = 0;
+    this.screenFlashDuration = 0;
+    this.screenFlashColor = "#ffffff";
   }
 
   update(dt) {
-    // Explicit system order:
-    // 1 Input -> 2 Player controller -> 3 AI -> 4 Physics -> 5 Tile collision
-    // 6 Entity interactions -> 7 State/sequences -> 8 Spawn -> 9 Camera -> 10 Effects.
+    const wasGrounded = this.player.grounded;
+
     if (this.clearTimer >= 0) {
       this.player.vx = 42;
       this.player.vy = clamp(this.player.vy + PC.fallGravity * dt, -1000, PC.maxFallSpeed);
     }
+
     this.playerController.update(this.player, this.input, dt);
+    if (this.player.jumpStarted) this.events.emit(Event.PLAYER_JUMP);
+    const impactVelocity = Math.max(0, this.player.vy);
+
     this.updateEnemiesAI(dt);
     this.updatePhysics(dt);
+    this.player.finalizeMovement(dt, wasGrounded, impactVelocity);
+    this.updatePlayerFeel(dt);
     this.rebuildBroadPhase();
     this.resolveInteractions();
     this.updateSequences(dt);
     this.spawnManager.update(this.entities, this.camera);
     this.blockSystem.update(dt);
     this.particles.update(dt);
+    this.floatingText.update(dt);
+    this.updateTransientEffects(dt);
     this.camera.update(this.player, dt);
     this.updateTimer(dt);
+  }
+
+  updatePlayerFeel(dt) {
+    const player = this.player;
+
+    if (player.justLanded) {
+      const hard = player.landingImpact >= PC.hardLandingImpactThreshold;
+      this.particles.land(player.centerX, player.y + player.height, hard);
+      this.camera.addTrauma(hard ? 0.11 : 0.045);
+      this.events.emit(Event.PLAYER_LAND, { hard });
+    }
+
+    if (player.skidding && player.grounded && Math.abs(player.vx) > PC.skidThreshold) {
+      player.skidDustTimer -= dt;
+      if (player.skidDustTimer <= 0) {
+        const movementDirection = Math.sign(player.vx) || player.facing;
+        this.particles.skid(player.centerX - movementDirection * 5, player.y + player.height, movementDirection);
+        player.skidDustTimer = PC.skidDustInterval;
+      }
+    } else {
+      player.skidDustTimer = 0;
+    }
+
+    if (this.stompChainTimer > 0) {
+      this.stompChainTimer = Math.max(0, this.stompChainTimer - dt);
+      if (this.stompChainTimer === 0) this.stompChain = 0;
+    }
   }
 
   updateEnemiesAI(dt) {
@@ -154,9 +195,16 @@ export class World {
       const result = enemy.stomp();
       player.vy = enemy.type === "shell" ? PC.shellStompBounceVelocity : PC.stompBounceVelocity;
       player.grounded = false;
+      player.setState("JUMP");
+      this.particles.stomp(enemy.centerX, enemy.y + 2);
+      this.camera.addTrauma(0.075);
+
       if (result === "defeated") {
-        this.events.emit(Event.ENEMY_DEFEATED, { score: enemy.score });
-        this.particles.burst(enemy.centerX, enemy.centerY, 6);
+        this.stompChain = this.stompChainTimer > 0 ? Math.min(8, this.stompChain + 1) : 1;
+        this.stompChainTimer = 0.72;
+        const score = enemy.score + Math.max(0, this.stompChain - 1) * 100;
+        this.events.emit(Event.ENEMY_DEFEATED, { score });
+        this.floatingText.spawn(enemy.centerX, enemy.y - 3, `+${score}`, this.stompChain >= 3 ? "#92ffe5" : "#fff1a1");
       }
       return;
     }
@@ -164,7 +212,11 @@ export class World {
     if (enemy.type === "shell" && enemy.state === "SHELL_IDLE") {
       const direction = player.centerX < enemy.centerX ? 1 : -1;
       enemy.kick(direction);
+      enemy.combo = 0;
       player.x += -direction * 3;
+      this.particles.stomp(enemy.centerX, enemy.centerY);
+      this.camera.addTrauma(0.055);
+      this.events.emit(Event.SHELL_KICK);
       return;
     }
 
@@ -181,8 +233,12 @@ export class World {
         if (target === shell || !target.active || target.kind !== "enemy" || !aabb(shell, target)) continue;
         target.active = false;
         target.state = "DEAD";
-        this.events.emit(Event.ENEMY_DEFEATED, { score: target.score + 100 });
-        this.particles.burst(target.centerX, target.centerY, 6);
+        shell.combo = Math.min(8, (shell.combo ?? 0) + 1);
+        const score = target.score + shell.combo * 100;
+        this.events.emit(Event.ENEMY_DEFEATED, { score });
+        this.floatingText.spawn(target.centerX, target.y - 3, `+${score}`, shell.combo >= 3 ? "#7fffe4" : "#fff1a1");
+        this.particles.stomp(target.centerX, target.centerY);
+        this.camera.addTrauma(Math.min(0.12, 0.045 + shell.combo * 0.012));
       }
     }
   }
@@ -191,19 +247,27 @@ export class World {
     if (item.type === "shard") {
       item.active = false;
       this.events.emit(Event.COIN_COLLECTED, {});
-      this.particles.burst(item.centerX, item.centerY, 5);
+      this.particles.collect(item.centerX, item.centerY);
+      this.floatingText.spawn(item.centerX, item.y - 2, "+100", "#fff088");
     } else if (item.type === "powerCore") {
       if (this.player.applyPower(this.collision)) {
         item.active = false;
         this.events.emit(Event.PLAYER_POWERUP, { type: "BOOST" });
-        this.particles.burst(item.centerX, item.centerY, 8);
+        this.particles.collect(item.centerX, item.centerY);
+        this.floatingText.spawn(item.centerX, item.y - 5, "POWER", "#8dffe8");
+        this.camera.addTrauma(0.085);
+        this.flash("#b9fff0", 0.16);
       }
     }
   }
 
   damagePlayer() {
     const result = this.player.damage();
-    if (result === "downgraded") this.events.emit(Event.PLAYER_HIT, {});
+    if (result === "ignored") return;
+    this.events.emit(Event.PLAYER_HIT, { fatal: result === "dead" });
+    this.particles.damage(this.player.centerX, this.player.centerY);
+    this.camera.addTrauma(result === "dead" ? 0.24 : 0.17);
+    this.flash("#ff9a9a", result === "dead" ? 0.18 : 0.12);
   }
 
   updateSequences(dt) {
@@ -227,6 +291,16 @@ export class World {
     }
   }
 
+  updateTransientEffects(dt) {
+    if (this.screenFlashTime > 0) this.screenFlashTime = Math.max(0, this.screenFlashTime - dt);
+  }
+
+  flash(color, duration) {
+    this.screenFlashColor = color;
+    this.screenFlashDuration = duration;
+    this.screenFlashTime = duration;
+  }
+
   updateTimer(dt) {
     if (this.player.dead || this.clearTimer >= 0) return;
     this.timeAccumulator += dt;
@@ -244,6 +318,9 @@ export class World {
     this.clearTimer = 1.8;
     const bonus = Math.max(0, Math.ceil(this.timeRemaining)) * 10;
     this.scoreSystem.add(bonus);
+    this.floatingText.spawn(this.player.centerX, this.player.y - 8, `TIME +${bonus}`, "#a4ffe9");
+    this.camera.addTrauma(0.12);
+    this.flash("#c9fff5", 0.18);
   }
 
   resolveCheckpoints() {
@@ -254,6 +331,8 @@ export class World {
       this.checkpointFlags[i] = 1;
       this.session.checkpoint = { x: cp.spawnX, y: cp.spawnY };
       this.events.emit(Event.CHECKPOINT_REACHED, { index: i });
+      this.floatingText.spawn(cp.x, 172, "CHECKPOINT", "#8dffe8");
+      this.flash("#8dffe8", 0.09);
     }
   }
 
@@ -261,7 +340,8 @@ export class World {
     const s = this.tileMap.tileSize;
     if (type === "shard") {
       this.events.emit(Event.COIN_COLLECTED, {});
-      this.particles.burst(col * s + s * 0.5, row * s - 2, 6);
+      this.particles.collect(col * s + s * 0.5, row * s - 2);
+      this.floatingText.spawn(col * s + s * 0.5, row * s - 5, "+100", "#fff088");
       return;
     }
     const item = new Item(type, col * s + 1, row * s);
@@ -288,6 +368,7 @@ export class World {
   destroy() {
     this.scoreSystem.destroy();
     this.particles.clear();
+    this.floatingText.clear();
     this.entities.length = 0;
   }
 }

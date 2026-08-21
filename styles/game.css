@@ -35,13 +35,23 @@ body{
   background:#5eaee7;
   isolation:isolate;
 }
+#game-frame::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:4;
+  pointer-events:none;
+  opacity:.07;
+  background:repeating-linear-gradient(180deg,#ffffff16 0 1px,#00000010 1px 2px);
+  mix-blend-mode:soft-light;
+}
 #game-frame::after{
   content:"";
   position:absolute;
   inset:0;
   z-index:4;
   pointer-events:none;
-  box-shadow:inset 0 0 0 1px #ffffff18,inset 0 -10px 24px #06101d20;
+  box-shadow:inset 0 0 0 1px #ffffff18,inset 0 -10px 24px #06101d20,inset 0 0 36px #07111a14;
 }
 #game-canvas{
   width:100%;
@@ -58,7 +68,7 @@ body{
   font-size:11px;
   line-height:1.35;
   letter-spacing:.035em;
-  color:#b8caDB;
+  color:#b8cadb;
   opacity:.74;
   user-select:none;
 }

@@ -9,17 +9,25 @@ export class BlockSystem {
 
   hit(col, row, player) {
     const tile = this.tileMap.get(col, row);
-    if (tile !== Tile.BREAKABLE && tile !== Tile.ITEM) return;
+    if (tile !== Tile.BREAKABLE && tile !== Tile.ITEM) return false;
 
     this.startBounce(col, row);
+    const s = this.tileMap.tileSize;
+    const centerX = col * s + s * 0.5;
+    const centerY = row * s + s * 0.5;
+    this.world.events.emit(Event.BLOCK_HIT, { tile });
+    this.world.camera.addTrauma(0.045);
 
     if (tile === Tile.BREAKABLE && player.power !== "NORMAL") {
       this.tileMap.set(col, row, Tile.EMPTY);
-      this.world.particles.burst(col * this.tileMap.tileSize + 8, row * this.tileMap.tileSize + 8, 8);
+      this.world.particles.block(centerX, centerY, true);
+      this.world.floatingText.spawn(centerX, row * s - 3, "+50", "#ffd68a");
       this.world.events.emit(Event.BLOCK_BROKEN, { score: 50 });
-      return;
+      this.world.camera.addTrauma(0.09);
+      return true;
     }
 
+    this.world.particles.block(centerX, row * s, false);
     if (tile === Tile.ITEM) {
       this.tileMap.set(col, row, Tile.USED);
       const payload = this.tileMap.getBlockPayload(col, row) ?? { type: "shard" };
@@ -27,6 +35,7 @@ export class BlockSystem {
     }
 
     this.world.bumpEnemiesAbove(col, row);
+    return true;
   }
 
   startBounce(col, row) {

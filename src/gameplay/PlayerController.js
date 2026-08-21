@@ -4,12 +4,15 @@ import { clamp, moveToward } from "../utils/math.js";
 
 export class PlayerController {
   update(player, input, dt) {
+    player.jumpStarted = false;
     if (player.dead || player.locked) return;
 
     const left = input.isHeld(Action.LEFT);
     const right = input.isHeld(Action.RIGHT);
     const direction = left === right ? 0 : right ? 1 : -1;
     const running = input.isHeld(Action.RUN);
+    player.controlDirection = direction;
+    player.runningInput = running;
 
     if (input.wasPressed(Action.JUMP)) player.jumpBufferTimer = C.jumpBufferTime;
     else player.jumpBufferTimer = Math.max(0, player.jumpBufferTimer - dt);
@@ -27,8 +30,8 @@ export class PlayerController {
       player.facing = direction;
       player.skidding = player.grounded && !sameDirection && Math.abs(player.vx) > C.skidThreshold;
     } else {
-      const decel = player.grounded ? C.groundDeceleration : C.airDeceleration;
-      player.vx = moveToward(player.vx, 0, decel * dt);
+      const deceleration = player.grounded ? C.groundDeceleration : C.airDeceleration;
+      player.vx = moveToward(player.vx, 0, deceleration * dt);
       player.skidding = false;
     }
 
@@ -37,6 +40,8 @@ export class PlayerController {
       player.grounded = false;
       player.coyoteTimer = 0;
       player.jumpBufferTimer = 0;
+      player.jumpStarted = true;
+      player.landingTimer = 0;
       player.setState("JUMP");
     }
 
@@ -46,12 +51,11 @@ export class PlayerController {
 
     const rising = player.vy < 0;
     const holdingJump = input.isHeld(Action.JUMP);
-    const gravity = rising ? (holdingJump ? C.heldJumpGravity : C.gravity) : C.fallGravity;
+    let gravity = C.fallGravity;
+    if (rising) {
+      const nearApex = Math.abs(player.vy) <= C.apexVelocityThreshold;
+      gravity = holdingJump ? (nearApex ? C.apexGravity : C.heldJumpGravity) : C.gravity;
+    }
     player.vy = clamp(player.vy + gravity * dt, -1000, C.maxFallSpeed);
-
-    if (!player.grounded) player.setState(player.vy < 0 ? "JUMP" : "FALL");
-    else if (player.skidding) player.setState("SKID");
-    else if (Math.abs(player.vx) < 3) player.setState("IDLE");
-    else player.setState(running && Math.abs(player.vx) > C.walkMaxSpeed * 0.88 ? "RUN" : "WALK");
   }
 }

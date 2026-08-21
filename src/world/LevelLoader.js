@@ -29,10 +29,12 @@ export class LevelLoader {
 
     return {
       name: data.name ?? "Untitled",
+      theme: data.theme ?? "copper-sky",
       tileMap,
       spawn: data.spawn ?? { x: 32, y: 180 },
       goal: data.goal ?? null,
       entities,
+      decorations: data.decorations ?? [],
       checkpoints: data.checkpoints ?? [],
       time: data.time ?? 300,
     };

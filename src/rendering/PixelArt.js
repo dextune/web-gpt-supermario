@@ -36,6 +36,10 @@ export function drawPlayerSprite(ctx, player, x, y, time) {
   const jump = state === "JUMP";
   const fall = state === "FALL";
   const skid = state === "SKID";
+  const land = state === "LAND";
+  const hit = state === "HIT";
+  const powering = state === "POWER_UP";
+  const bodyDrop = land && player.stateTime < 0.055 ? 2 : 0;
 
   pixelShadow(ctx, baseX, y + player.height, spriteW);
   beginFacing(ctx, baseX, baseY + bob, spriteW, player.facing);
@@ -46,7 +50,7 @@ export function drawPlayerSprite(ctx, player, x, y, time) {
     ctx.translate(-spriteW * 0.5, -spriteH * 0.5);
   }
 
-  const scarfY = powered ? 10 : 7;
+  const scarfY = (powered ? 10 : 7) + bodyDrop;
   rect(ctx, -3, scarfY + (jump ? 2 : 0), 6, 3, "#9b3f34");
   rect(ctx, -5, scarfY + 1 + (jump ? 3 : 0), 4, 2, "#e06745");
   rect(ctx, 1, scarfY, 4, 2, "#ff9b54");
@@ -57,7 +61,7 @@ export function drawPlayerSprite(ctx, player, x, y, time) {
     rect(ctx, 3, 13, 2, 2, "#9df7de");
   }
 
-  const legY = powered ? 21 : 14;
+  const legY = (powered ? 21 : 14) + (land ? 1 : 0);
   const leftLeg = jump ? -1 : fall ? 1 : leg;
   const rightLeg = jump ? 1 : fall ? 0 : -leg;
   rect(ctx, 6 + leftLeg, legY, 4, powered ? 5 : 4, "#16476b");
@@ -67,7 +71,7 @@ export function drawPlayerSprite(ctx, player, x, y, time) {
   rect(ctx, 6 + leftLeg, legY + (powered ? 5 : 4), 3, 1, "#6edaf0");
   rect(ctx, 12 + rightLeg, legY + (powered ? 5 : 4), 3, 1, "#6edaf0");
 
-  const torsoY = powered ? 10 : 8;
+  const torsoY = (powered ? 10 : 8) + bodyDrop;
   const torsoH = powered ? 12 : 8;
   rect(ctx, 4, torsoY, 13, torsoH, "#0b2134");
   rect(ctx, 5, torsoY + 1, 11, torsoH - 2, powered ? "#167ca1" : "#17658d");
@@ -82,7 +86,7 @@ export function drawPlayerSprite(ctx, player, x, y, time) {
   rect(ctx, 2, torsoY + 7 + Math.max(0, armSwing), 3, 2, "#d8edf1");
   rect(ctx, 17, torsoY + 6 + Math.max(0, -armSwing), 3, 2, "#d8edf1");
 
-  const headY = powered ? 1 : 0;
+  const headY = (powered ? 1 : 0) + bodyDrop;
   rect(ctx, 5, headY + 1, 11, 2, "#101d2d");
   rect(ctx, 3, headY + 3, 15, 6, "#101d2d");
   rect(ctx, 5, headY, 10, 2, "#eef7f0");
@@ -104,6 +108,24 @@ export function drawPlayerSprite(ctx, player, x, y, time) {
   if (skid) {
     rect(ctx, -2, spriteH - 3, 2, 1, "#e8f0c4");
     rect(ctx, -5, spriteH - 2, 3, 1, "#d7c18e");
+  }
+
+  if (land && player.stateTime < 0.055) {
+    rect(ctx, 2, spriteH - 2, 3, 1, "#d7c18e");
+    rect(ctx, spriteW - 4, spriteH - 2, 3, 1, "#d7c18e");
+  }
+
+  if (hit && (Math.floor(time * 22) & 1) === 0) {
+    rect(ctx, 3, 3, 2, 6, "#ff9a8f");
+    rect(ctx, spriteW - 2, 7, 2, 5, "#ffd0bf");
+  }
+
+  if (powering) {
+    const flash = Math.floor(time * 18) & 1;
+    rect(ctx, -3, 3, 1, flash ? 5 : 3, "#b8fff0");
+    rect(ctx, -5, 5, 5, 1, "#b8fff0");
+    rect(ctx, spriteW + 1, 12, 1, flash ? 3 : 5, "#ffe58a");
+    rect(ctx, spriteW - 1, 14, 5, 1, "#ffe58a");
   }
 
   ctx.restore();

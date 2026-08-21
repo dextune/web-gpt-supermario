@@ -1,12 +1,35 @@
+import { Event } from "../data/constants.js";
+
 export class HUD {
-  constructor(root) {
+  constructor(root, events) {
+    this.root = root;
     this.nodes = {
       score: root.querySelector('[data-hud="score"]'),
       coins: root.querySelector('[data-hud="coins"]'),
       lives: root.querySelector('[data-hud="lives"]'),
       time: root.querySelector('[data-hud="time"]'),
     };
+    this.cells = {
+      score: this.nodes.score?.parentElement,
+      coins: this.nodes.coins?.parentElement,
+      lives: this.nodes.lives?.parentElement,
+      time: this.nodes.time?.parentElement,
+    };
     this.last = { score: -1, coins: -1, lives: -1, time: -1 };
+    this.disposers = events ? [
+      events.on(Event.SCORE_CHANGED, () => this.pulse("score")),
+      events.on(Event.COIN_COLLECTED, () => this.pulse("coins")),
+      events.on(Event.PLAYER_HIT, () => this.pulse("lives", "danger")),
+    ] : [];
+  }
+
+  pulse(key, extra = "") {
+    const cell = this.cells[key];
+    if (!cell) return;
+    cell.classList.remove("hud-pulse", "danger");
+    void cell.offsetWidth;
+    if (extra) cell.classList.add(extra);
+    cell.classList.add("hud-pulse");
   }
 
   update(session, time) {
@@ -26,6 +49,12 @@ export class HUD {
     if (seconds !== this.last.time) {
       this.nodes.time.textContent = String(seconds);
       this.last.time = seconds;
+      this.cells.time?.classList.toggle("warning", seconds <= 30);
     }
+  }
+
+  destroy() {
+    for (const dispose of this.disposers) dispose();
+    this.disposers.length = 0;
   }
 }
